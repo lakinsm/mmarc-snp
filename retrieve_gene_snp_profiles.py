@@ -64,37 +64,42 @@ def find_ungapped_position(seq, codon_start, codon_stop):
         return gene_start, gene_stop
 
 
-def traverse_MPAs(top_level_dir_path, snpsearch_metadata):
+def traverse_MPAs(top_level_dir_path, snpsearch_metadata, fasta_outfile_path):
     sys.stdout.write('gene_header,model_name,0-based_start_index,0-based_stop_index,wild-type_amino_acid,' +
                      'mutant_amino_acid,symbolic_gene_name,class_annotation,mechanism_annotation,group_annotation,'+
                      'ungapped_sequence\n')
-    for multiple_alignment_fasta in glob.glob(top_level_dir_path + '/*/*'):
-        model_name = multiple_alignment_fasta.split('/')[-1].replace('.fasta', '')
-        if model_name in snpsearch_metadata:
-            if snpsearch_metadata[model_name][0][3] == '1' and snpsearch_metadata[model_name][0][-1]:  # if we need to search this model
-                mpa_data = {header: seq for header, seq in fastaParse(multiple_alignment_fasta)}
-                for header, seq in mpa_data.items():
-                    for snp_entry in snpsearch_metadata[model_name]:
-                        start, stop = find_ungapped_position(seq, int(snp_entry[7]), int(snp_entry[8]))
-                        if start:
-                            # header, modelname, 0-based start idx, 0-based stop idx, wild-type amino acid,
-                            # mutant amino acid, gene, class, mechanism, group,ungapped seq
-                            sys.stdout.write('{},{},{},{},{},{},{},{},{},{},{}\n'.format(
-                                header,
-                                model_name,
-                                start,
-                                stop,
-                                snp_entry[5],
-                                snp_entry[6],
-                                snp_entry[9],
-                                snp_entry[0],
-                                snp_entry[1],
-                                snp_entry[2],
-                                seq.replace('-', '')
-                            ))
+    with open(fasta_outfile_path, 'w') as out:
+        for multiple_alignment_fasta in glob.glob(top_level_dir_path + '/*/*'):
+            model_name = multiple_alignment_fasta.split('/')[-1].replace('.fasta', '')
+            if model_name in snpsearch_metadata:
+                if snpsearch_metadata[model_name][0][3] == '1' and snpsearch_metadata[model_name][0][-1]:  # if we need to search this model
+                    mpa_data = {header: seq for header, seq in fastaParse(multiple_alignment_fasta)}
+                    seen_seqs = set()
+                    for header, seq in mpa_data.items():
+                        for snp_entry in snpsearch_metadata[model_name]:
+                            start, stop = find_ungapped_position(seq, int(snp_entry[7]), int(snp_entry[8]))
+                            if start:
+                                # header, modelname, 0-based start idx, 0-based stop idx, wild-type amino acid,
+                                # mutant amino acid, gene, class, mechanism, group,ungapped seq
+                                sys.stdout.write('{},{},{},{},{},{},{},{},{},{},{}\n'.format(
+                                    header,
+                                    model_name,
+                                    start,
+                                    stop,
+                                    snp_entry[5],
+                                    snp_entry[6],
+                                    snp_entry[9],
+                                    snp_entry[0],
+                                    snp_entry[1],
+                                    snp_entry[2],
+                                    seq.replace('-', '')
+                                ))
+                                if header not in seen_seqs:
+                                    seen_seqs.add(header)
+                                    out.write('>{}\n{}\n'.format(header, seq.replace('-', '')))
 
 
 if __name__ == '__main__':
     snpsearch_metadata = load_snpsearch_metadata(reldir + '/mmarc_snpsearch_metadata.csv')
-    traverse_MPAs(reldir + '/models', snpsearch_metadata)
+    traverse_MPAs(reldir + '/models', snpsearch_metadata, reldir + '/model_sequences_ungapped.fasta')
 
